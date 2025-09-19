@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unlink } from 'fs/promises'
 import path from 'path'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { prisma } from '@/lib/prisma'
+
+const execAsync = promisify(exec)
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -30,10 +34,10 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Xóa file vật lý
+    // Xóa file vật lý từ Git repo
     for (const image of images) {
       try {
-        const filePath = path.join(process.cwd(), 'public', image.path)
+        const filePath = path.join(process.cwd(), 'git-images', image.filename)
         await unlink(filePath)
       } catch (error) {
         console.error(`Không thể xóa file ${image.filename}:`, error)
@@ -49,6 +53,16 @@ export async function DELETE(request: NextRequest) {
         }
       }
     })
+
+    // Commit việc xóa vào Git
+    try {
+      await execAsync('git add git-images/', { cwd: process.cwd() })
+      await execAsync(`git commit -m "Delete ${images.length} images"`, { cwd: process.cwd() })
+      await execAsync('git push', { cwd: process.cwd() })
+    } catch (gitError) {
+      console.error('Git commit error:', gitError)
+      // Không fail delete nếu Git commit lỗi
+    }
 
     return NextResponse.json({
       success: true,

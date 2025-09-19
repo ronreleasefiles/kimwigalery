@@ -27,7 +27,8 @@ model Image {
   id        String   @id @default(cuid())
   filename  String
   originalName String
-  path      String
+  path      String   // URL path để truy cập ảnh
+  base64Data String  // Dữ liệu ảnh dưới dạng base64
   size      Int
   mimeType  String
   isPublic  Boolean  @default(false)

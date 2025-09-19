@@ -3,6 +3,7 @@ export interface ImageType {
   filename: string
   originalName: string
   path: string
+  base64Data: string
   size: number
   mimeType: string
   isPublic: boolean

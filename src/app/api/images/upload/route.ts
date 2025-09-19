@@ -3,8 +3,12 @@ import { writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { prisma } from '@/lib/prisma'
 import { isValidImageType } from '@/lib/utils'
+
+const execAsync = promisify(exec)
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,10 +24,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Tạo thư mục upload nếu chưa tồn tại
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
+    // Tạo thư mục images trong Git repo nếu chưa tồn tại
+    const imagesDir = path.join(process.cwd(), 'git-images')
+    if (!existsSync(imagesDir)) {
+      await mkdir(imagesDir, { recursive: true })
     }
 
     const uploadedImages = []
@@ -43,19 +47,23 @@ export async function POST(request: NextRequest) {
       // Tạo tên file unique
       const fileExtension = path.extname(file.name)
       const filename = `${uuidv4()}${fileExtension}`
-      const filePath = path.join(uploadDir, filename)
+      const filePath = path.join(imagesDir, filename)
 
-      // Lưu file
+      // Chuyển đổi file thành base64
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
+      const base64Data = buffer.toString('base64')
+      
+      // Lưu file vào Git repo
       await writeFile(filePath, buffer)
 
-      // Lưu thông tin vào database
+      // Lưu thông tin vào database với base64
       const image = await prisma.image.create({
         data: {
           filename,
           originalName: file.name,
-          path: `/uploads/${filename}`,
+          path: `/api/images/serve/${filename}`, // API endpoint để serve ảnh
+          base64Data: `data:${file.type};base64,${base64Data}`,
           size: file.size,
           mimeType: file.type,
           isPublic,
@@ -67,6 +75,18 @@ export async function POST(request: NextRequest) {
       })
 
       uploadedImages.push(image)
+    }
+
+    // Commit ảnh vào Git repository
+    if (uploadedImages.length > 0) {
+      try {
+        await execAsync('git add git-images/', { cwd: process.cwd() })
+        await execAsync(`git commit -m "Add ${uploadedImages.length} new images"`, { cwd: process.cwd() })
+        await execAsync('git push', { cwd: process.cwd() })
+      } catch (gitError) {
+        console.error('Git commit error:', gitError)
+        // Không fail upload nếu Git commit lỗi
+      }
     }
 
     if (uploadedImages.length === 0) {
