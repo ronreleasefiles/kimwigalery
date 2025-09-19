@@ -49,7 +49,7 @@ export default function FolderModal({
       }
     } catch (error) {
       console.error('Create folder error:', error)
-      setError('Lỗi khi tạo folder')
+      setError(`Lỗi khi tạo folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setCreating(false)
     }
