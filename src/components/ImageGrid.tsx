@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { ImageType } from '@/types'
-import { formatFileSize, formatDate } from '@/lib/utils'
-import { Eye, EyeOff, Check } from 'lucide-react'
+import { formatFileSize } from '@/lib/utils'
+import { Eye, EyeOff, Play, Check } from 'lucide-react'
+import ImageViewer from './ImageViewer'
 
 interface ImageGridProps {
   images: ImageType[]
@@ -19,12 +20,13 @@ export default function ImageGrid({
   onImageSelect,
   loading
 }: ImageGridProps) {
-  const [imageModal, setImageModal] = useState<ImageType | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState(0)
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {Array.from({ length: 10 }).map((_, index) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
+        {Array.from({ length: 12 }).map((_, index) => (
           <div
             key={index}
             className="aspect-square bg-gray-200 rounded-lg animate-pulse"
@@ -36,20 +38,18 @@ export default function ImageGrid({
 
   if (images.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Image
+      <div className="flex flex-col items-center justify-center py-12 px-4">
+        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+          <img
             src="/placeholder-image.svg"
             alt="No images"
-            width={48}
-            height={48}
-            className="text-gray-400"
+            className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400"
           />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2 text-center">
           Chưa có ảnh nào
         </h3>
-        <p className="text-gray-500 text-center max-w-sm">
+        <p className="text-sm sm:text-base text-gray-500 text-center max-w-sm">
           Bắt đầu bằng cách upload ảnh đầu tiên của bạn vào thư viện
         </p>
       </div>
@@ -58,57 +58,115 @@ export default function ImageGrid({
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {images.map((image) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
+        {images.map((image, index) => (
           <div
             key={image.id}
-            className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+            className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow touch-manipulation"
+            onClick={() => {
+              setViewerIndex(index)
+              setViewerOpen(true)
+            }}
           >
             {/* Checkbox for selection */}
-            <div className="absolute top-2 left-2 z-10">
+            <div className="absolute top-1 sm:top-2 left-1 sm:left-2 z-10">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onImageSelect(image.id)
                 }}
-                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                   selectedImages.includes(image.id)
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 hover:border-blue-400'
                 }`}
               >
                 {selectedImages.includes(image.id) && (
-                  <Check className="w-4 h-4" />
+                  <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                 )}
               </button>
             </div>
 
             {/* Public/Private indicator */}
-            <div className="absolute top-2 right-2 z-10">
+            <div className="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
               {image.isPublic ? (
                 <div className="bg-green-500 text-white p-1 rounded-full">
-                  <Eye className="w-3 h-3" />
+                  <Eye className="w-2 h-2 sm:w-3 sm:h-3" />
                 </div>
               ) : (
                 <div className="bg-gray-500 text-white p-1 rounded-full">
-                  <EyeOff className="w-3 h-3" />
+                  <EyeOff className="w-2 h-2 sm:w-3 sm:h-3" />
                 </div>
               )}
             </div>
 
-            {/* Image */}
-            <Image
-              src={image.path}
-              alt={image.originalName}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-200"
-              onClick={() => setImageModal(image)}
-            />
+            {/* Media Content - Image or Video */}
+            {image.mediaType === 'video' ? (
+              <video
+                src={image.path}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                poster="" // Không hiển thị poster để tránh flash
+                onMouseEnter={(e) => {
+                  const video = e.target as HTMLVideoElement
+                  video.currentTime = 0
+                  video.play().catch(() => {
+                    // Ignore autoplay errors
+                  })
+                }}
+                onMouseLeave={(e) => {
+                  const video = e.target as HTMLVideoElement
+                  video.pause()
+                  video.currentTime = 0
+                }}
+                onError={(e) => {
+                  console.error('Video load error for:', image.path)
+                }}
+                onLoadedMetadata={() => {
+                  console.log('Video loaded successfully:', image.path)
+                }}
+                onCanPlay={(e) => {
+                  // Đảm bảo video có aspect ratio đúng
+                  const video = e.target as HTMLVideoElement
+                  video.style.objectFit = 'cover'
+                }}
+              />
+            ) : (
+              <Image
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16vw"
+                src={image.path}
+                alt={image.originalName}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                onError={(e) => {
+                  console.error('Image load error for:', image.path)
+                  // Fallback to a placeholder or hide the image
+                  const target = e.target as HTMLImageElement
+                  target.src = '/placeholder-image.svg'
+                  target.alt = 'Image not found'
+                }}
+                onLoad={() => {
+                  console.log('Image loaded successfully:', image.path)
+                }}
+              />
+            )}
 
-            {/* Overlay with image info */}
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-end">
-              <div className="p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                <p className="text-sm font-medium truncate">
+            {/* Video Play Icon */}
+            {image.mediaType === 'video' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="bg-black bg-opacity-50 rounded-full p-3 group-hover:bg-opacity-70 transition-all duration-200">
+                  <Play className="w-6 h-6 text-white fill-white" />
+                </div>
+              </div>
+            )}
+
+            {/* Overlay with image info - hidden on mobile */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent group-hover:bg-opacity-40 transition-all duration-200 flex items-end">
+              <div className="p-2 sm:p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
+                <p className="text-xs sm:text-sm font-medium truncate">
                   {image.originalName}
                 </p>
                 <p className="text-xs text-gray-200">
@@ -120,103 +178,15 @@ export default function ImageGrid({
         ))}
       </div>
 
-      {/* Image Modal */}
-      {imageModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl max-h-full overflow-auto">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">
-                  {imageModal.originalName}
-                </h3>
-                <button
-                  onClick={() => setImageModal(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-4">
-              <div className="flex flex-col lg:flex-row gap-6">
-                {/* Image */}
-                <div className="flex-1">
-                  <div className="relative aspect-square max-w-lg mx-auto">
-                    <Image
-                      src={imageModal.path}
-                      alt={imageModal.originalName}
-                      fill
-                      className="object-contain rounded-lg"
-                    />
-                  </div>
-                </div>
-                
-                {/* Image details */}
-                <div className="lg:w-80 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">
-                      Thông tin ảnh
-                    </h4>
-                    <dl className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <dt className="text-gray-500">Tên file:</dt>
-                        <dd className="text-gray-900 truncate ml-2">
-                          {imageModal.filename}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-gray-500">Kích thước:</dt>
-                        <dd className="text-gray-900">
-                          {formatFileSize(imageModal.size)}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-gray-500">Loại file:</dt>
-                        <dd className="text-gray-900">
-                          {imageModal.mimeType}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-gray-500">Trạng thái:</dt>
-                        <dd className="flex items-center">
-                          {imageModal.isPublic ? (
-                            <>
-                              <Eye className="w-4 h-4 text-green-500 mr-1" />
-                              <span className="text-green-600">Công khai</span>
-                            </>
-                          ) : (
-                            <>
-                              <EyeOff className="w-4 h-4 text-gray-500 mr-1" />
-                              <span className="text-gray-600">Riêng tư</span>
-                            </>
-                          )}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-gray-500">Ngày tạo:</dt>
-                        <dd className="text-gray-900">
-                          {formatDate(new Date(imageModal.createdAt))}
-                        </dd>
-                      </div>
-                      {imageModal.folder && (
-                        <div className="flex justify-between">
-                          <dt className="text-gray-500">Folder:</dt>
-                          <dd className="text-gray-900">
-                            {imageModal.folder.name}
-                          </dd>
-                        </div>
-                      )}
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Image Viewer */}
+      <ImageViewer
+        images={images}
+        currentIndex={viewerIndex}
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        onImageSelect={onImageSelect}
+        selectedImages={selectedImages}
+      />
     </>
   )
 }

@@ -24,20 +24,21 @@ model Folder {
 }
 
 model Image {
-  id        String   @id @default(cuid())
-  filename  String
+  id           String   @id @default(cuid())
+  filename     String
   originalName String
-  path      String   // URL path để truy cập ảnh
-  base64Data String  // Dữ liệu ảnh dưới dạng base64
-  size      Int
-  mimeType  String
-  isPublic  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  path         String   // URL để truy cập ảnh/video từ GitHub
+  size         Int
+  mimeType     String
+  mediaType    String   @default("image") // "image" hoặc "video"
+  isPublic     Boolean  @default(false)
+  metadata     String?  // JSON metadata cho chunked files
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   
   // Quan hệ với Folder (optional)
-  folderId  String?
-  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folderId     String?
+  folder       Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   
   @@map("images")
 }

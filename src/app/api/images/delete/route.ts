@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { unlink } from 'fs/promises'
-import path from 'path'
-import { exec } from 'child_process'
-import { promisify } from 'util'
 import { prisma } from '@/lib/prisma'
+import { deleteFromGitHub } from '@/lib/git-storage'
 
-const execAsync = promisify(exec)
+interface ChunkedFileMetadata {
+  sessionId: string
+  totalChunks: number
+  isChunkedFile: boolean
+}
 
-export async function DELETE(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const { imageIds } = await request.json()
 
@@ -34,18 +35,64 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Xóa file vật lý từ Git repo
+    console.log(`\n🗑️  ============= DELETING ${images.length} FILES =============`)
+    
+    let deletedCount = 0
+    let chunkedFilesDeleted = 0
+    let regularFilesDeleted = 0
+    
+    // Xóa từng file từ GitHub storage
     for (const image of images) {
       try {
-        const filePath = path.join(process.cwd(), 'git-images', image.filename)
-        await unlink(filePath)
+        console.log(`🗑️  Processing: ${image.originalName}`)
+        
+        // Kiểm tra xem có phải chunked file không
+        if (image.metadata) {
+          try {
+            const metadata: ChunkedFileMetadata = JSON.parse(image.metadata)
+            
+            if (metadata.isChunkedFile && metadata.sessionId && metadata.totalChunks) {
+              console.log(`🧩 Chunked file detected: ${metadata.totalChunks} chunks`)
+              
+              // Xóa từng chunk
+              let chunksDeleted = 0
+              for (let i = 0; i < metadata.totalChunks; i++) {
+                const chunkFileName = `${metadata.sessionId}_chunk_${i.toString().padStart(4, '0')}`
+                try {
+                  await deleteFromGitHub(chunkFileName, `temp_chunks/${metadata.sessionId}`)
+                  chunksDeleted++
+                  console.log(`✅ Deleted chunk ${i + 1}/${metadata.totalChunks}: ${chunkFileName}`)
+                } catch (chunkError) {
+                  console.warn(`⚠️  Failed to delete chunk ${i + 1}: ${chunkError}`)
+                }
+              }
+              
+              console.log(`🧩 Chunked file cleanup: ${chunksDeleted}/${metadata.totalChunks} chunks deleted`)
+              chunkedFilesDeleted++
+            }
+          } catch (metadataError) {
+            console.warn(`⚠️  Invalid metadata for ${image.filename}:`, metadataError)
+          }
+        } else {
+          // File thông thường - xóa từ Gallery folder
+          try {
+            await deleteFromGitHub(image.filename, 'Gallery')
+            console.log(`✅ Deleted regular file: ${image.filename}`)
+            regularFilesDeleted++
+          } catch (deleteError) {
+            console.error(`❌ Failed to delete ${image.filename}:`, deleteError)
+          }
+        }
+        
+        deletedCount++
+        
       } catch (error) {
-        console.error(`Không thể xóa file ${image.filename}:`, error)
-        // Tiếp tục xóa các file khác
+        console.error(`❌ Error processing ${image.filename}:`, error)
       }
     }
 
-    // Xóa record trong database
+    // Xóa records trong database
+    console.log(`\n💾 Deleting ${images.length} records from database...`)
     await prisma.image.deleteMany({
       where: {
         id: {
@@ -53,16 +100,14 @@ export async function DELETE(request: NextRequest) {
         }
       }
     })
-
-    // Commit việc xóa vào Git
-    try {
-      await execAsync('git add git-images/', { cwd: process.cwd() })
-      await execAsync(`git commit -m "Delete ${images.length} images"`, { cwd: process.cwd() })
-      await execAsync('git push', { cwd: process.cwd() })
-    } catch (gitError) {
-      console.error('Git commit error:', gitError)
-      // Không fail delete nếu Git commit lỗi
-    }
+    
+    console.log(`\n🎉 ============= DELETION COMPLETE =============`)
+    console.log(`📊 Total files processed: ${deletedCount}/${images.length}`)
+    console.log(`🧩 Chunked files: ${chunkedFilesDeleted}`)
+    console.log(`📁 Regular files: ${regularFilesDeleted}`)
+    console.log(`💾 Database records deleted: ${images.length}`)
+    console.log(`⏰ Completed at: ${new Date().toLocaleTimeString('vi-VN')}`)
+    console.log(`=============================================\n`)
 
     return NextResponse.json({
       success: true,

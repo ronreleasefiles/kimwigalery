@@ -2,29 +2,32 @@
 
 import { useState } from 'react'
 import { FolderType } from '@/types'
-import { 
-  Folder, 
-  FolderOpen, 
-  Home, 
-  Eye, 
-  EyeOff, 
+import {
+  Home,
   MoreVertical,
   Edit,
-  Trash2
+  Trash2,
+  Eye,
+  EyeOff
 } from 'lucide-react'
+import SimpleFolderIcon from '@/components/icons/SimpleFolderIcon'
 
 interface SidebarProps {
   folders: FolderType[]
   selectedFolder: string | null
   onFolderSelect: (folderId: string | null) => void
   onRefreshFolders: () => void
+  isOpen?: boolean
+  onClose?: () => void
 }
 
 export default function Sidebar({
   folders,
   selectedFolder,
   onFolderSelect,
-  onRefreshFolders
+  onRefreshFolders,
+  isOpen = true,
+  onClose
 }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
 
@@ -82,11 +85,41 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 h-screen overflow-y-auto">
-      <div className="p-4">
-        <h2 className="text-sm font-medium text-gray-900 mb-4">
-          Thư viện ảnh
-        </h2>
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 
+        transform transition-transform duration-300 ease-in-out lg:transform-none
+        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        overflow-y-auto
+      `}>
+        <div className="p-4">
+          {/* Mobile close button */}
+          <div className="lg:hidden flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium text-gray-900">
+              Thư viện ảnh
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-gray-100"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <h2 className="hidden lg:block text-sm font-medium text-gray-900 mb-4">
+            Thư viện ảnh
+          </h2>
         
         {/* Tất cả ảnh */}
         <button
@@ -126,11 +159,10 @@ export default function Sidebar({
                     onClick={() => onFolderSelect(folder.id)}
                     className="flex-1 flex items-center px-3 py-2 text-sm"
                   >
-                    {selectedFolder === folder.id ? (
-                      <FolderOpen className="w-4 h-4 mr-3 flex-shrink-0" />
-                    ) : (
-                      <Folder className="w-4 h-4 mr-3 flex-shrink-0" />
-                    )}
+                    <SimpleFolderIcon 
+                      className="w-4 h-4 mr-3 flex-shrink-0" 
+                      isPublic={folder.isPublic}
+                    />
                     <span className="truncate flex-1 text-left">
                       {folder.name}
                     </span>
@@ -195,5 +227,6 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   )
 }

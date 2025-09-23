@@ -57,22 +57,22 @@ export default function FolderModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full">
+      <div className="bg-white rounded-lg max-w-md w-full mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">
             Tạo folder mới
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 p-1"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {error && (
             <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
               {error}

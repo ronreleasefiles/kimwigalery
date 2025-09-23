@@ -1,14 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// Lấy thông tin folder
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: folderId } = await params
+
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderId },
+      include: {
+        _count: {
+          select: {
+            images: true
+          }
+        }
+      }
+    })
+
+    if (!folder) {
+      return NextResponse.json(
+        { success: false, message: 'Không tìm thấy folder' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: folder
+    })
+
+  } catch (error) {
+    console.error('Get folder error:', error)
+    return NextResponse.json(
+      { success: false, message: 'Lỗi khi lấy thông tin folder' },
+      { status: 500 }
+    )
+  }
+}
+
 // Cập nhật folder
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { name, isPublic } = await request.json()
-    const folderId = params.id
+    const { id: folderId } = await params
 
     const updateData: any = {}
     
@@ -74,10 +114,10 @@ export async function PATCH(
 // Xóa folder
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const folderId = params.id
+    const { id: folderId } = await params
 
     // Kiểm tra folder có tồn tại không
     const folder = await prisma.folder.findUnique({

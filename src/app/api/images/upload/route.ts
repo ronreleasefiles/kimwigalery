@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { exec } from 'child_process'
-import { promisify } from 'util'
 import { prisma } from '@/lib/prisma'
-import { isValidImageType } from '@/lib/utils'
-
-const execAsync = promisify(exec)
+import { uploadToGitHub } from '@/lib/git-storage'
+import { isValidMediaType, isValidVideoType } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,48 +18,61 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Tạo thư mục images trong Git repo nếu chưa tồn tại
-    const imagesDir = path.join(process.cwd(), 'git-images')
-    if (!existsSync(imagesDir)) {
-      await mkdir(imagesDir, { recursive: true })
-    }
-
     const uploadedImages = []
 
     for (const file of files) {
-      // Kiểm tra loại file
-      if (!isValidImageType(file.type)) {
-        continue // Bỏ qua file không hợp lệ
+      if (!file || file.size === 0) {
+        console.log(`Skipping empty file: ${file?.name}`)
+        continue
       }
 
-      // Kiểm tra kích thước file (10MB)
-      const maxSize = 10 * 1024 * 1024
+      // Kiểm tra loại file
+      if (!isValidMediaType(file.type)) {
+        console.log(`Invalid media type: ${file.type} for file: ${file.name}`)
+        continue
+      }
+
+      console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size}`)
+
+      // Kiểm tra size file
+      const maxImageSize = 10 * 1024 * 1024 // 10MB
+      const maxVideoSize = 25 * 1024 * 1024 // 25MB
+      const isVideo = isValidVideoType(file.type)
+      const maxSize = isVideo ? maxVideoSize : maxImageSize
+      
       if (file.size > maxSize) {
-        continue // Bỏ qua file quá lớn
+        console.log(`File too large: ${file.name}, size: ${file.size}, max: ${maxSize}`)
+        continue
       }
 
       // Tạo tên file unique
-      const fileExtension = path.extname(file.name)
-      const filename = `${uuidv4()}${fileExtension}`
-      const filePath = path.join(imagesDir, filename)
+      const fileExtension = file.name.split('.').pop() || ''
+      const filename = `${uuidv4()}.${fileExtension}`
 
-      // Chuyển đổi file thành base64
+      // Chuyển đổi file thành buffer
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
-      const base64Data = buffer.toString('base64')
       
-      // Lưu file vào Git repo
-      await writeFile(filePath, buffer)
+      // Upload lên GitHub storage
+      console.log(`Uploading to GitHub: ${filename}`)
+      const uploadResult = await uploadToGitHub(buffer, filename, 'Gallery')
+      
+      if (!uploadResult.success) {
+        console.error('GitHub upload failed for', filename, ':', uploadResult.error)
+        continue
+      }
+      
+      console.log(`GitHub upload success for ${filename}:`, uploadResult.downloadUrl)
 
-      // Lưu thông tin vào database với base64
+      // Lưu thông tin vào database với GitHub URL
       const image = await prisma.image.create({
         data: {
           filename,
           originalName: file.name,
-          path: `/api/images/serve/${filename}`, // API endpoint để serve ảnh
-          base64Data: `data:${file.type};base64,${base64Data}`,
+          path: uploadResult.downloadUrl!, // URL từ GitHub
           size: file.size,
           mimeType: file.type,
+          mediaType: isValidVideoType(file.type) ? 'video' : 'image',
           isPublic,
           folderId: folderId || null
         },
@@ -77,17 +84,7 @@ export async function POST(request: NextRequest) {
       uploadedImages.push(image)
     }
 
-    // Commit ảnh vào Git repository
-    if (uploadedImages.length > 0) {
-      try {
-        await execAsync('git add git-images/', { cwd: process.cwd() })
-        await execAsync(`git commit -m "Add ${uploadedImages.length} new images"`, { cwd: process.cwd() })
-        await execAsync('git push', { cwd: process.cwd() })
-      } catch (gitError) {
-        console.error('Git commit error:', gitError)
-        // Không fail upload nếu Git commit lỗi
-      }
-    }
+    // GitHub upload đã được thực hiện trong vòng lặp trên
 
     if (uploadedImages.length === 0) {
       return NextResponse.json(

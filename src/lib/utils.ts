@@ -36,3 +36,19 @@ export function isValidImageType(mimeType: string): boolean {
   ]
   return validTypes.includes(mimeType)
 }
+
+export function isValidVideoType(mimeType: string): boolean {
+  const validTypes = [
+    'video/mp4',
+    'video/webm',
+    'video/ogg',
+    'video/avi',
+    'video/mov',
+    'video/wmv'
+  ]
+  return validTypes.includes(mimeType)
+}
+
+export function isValidMediaType(mimeType: string): boolean {
+  return isValidImageType(mimeType) || isValidVideoType(mimeType)
+}

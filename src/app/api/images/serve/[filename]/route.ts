@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
-    const filename = params.filename
+    const { filename } = await params
 
     // Tìm ảnh trong database
     const image = await prisma.image.findFirst({
